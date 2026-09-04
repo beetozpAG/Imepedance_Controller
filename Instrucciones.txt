@@ -1,0 +1,33 @@
+1.- Prender el robot y conectar el ethernet (checar botón de emergencia)
+
+2.- Abrir la API web y llevar el robot a zero.
+
+3.- Abrir un codigo C++ antiguo funcional.
+
+4.- Hacer una copia del código con las carpetas básicas:
+	DataLogging
+	Dependencies
+	KinovaRobot
+	Matrix
+    Y los archivos:
+    	CMakeLists.txt
+    	main.cpp
+    	Gen3_model.h
+    	Matrix.h
+    	udp_server.h
+    	
+5.- Dentro del CMakeLists.h escoger el nombre del ejecutable, por ejemplo, "ejecutable"
+    	
+6.- En una terminal dentro de la carpeta de la copia ejecutar:
+	cmake -B build -DCMAKE_BUILD_TYPE=Debug
+    para crear la carpeta build con los archivos necesarios.
+    
+8.- Modificar main.cpp al gusto.
+
+7.- En la misma terminal (o distinta) entrar a la carpeta /build y ejecutar el comando: make
+    o también: make -j12
+    Esto se debe hacer por cada modificación
+    
+9.- Correr el ejecutable desde la terminal dentro de la carpeta /build usando el nombre, ejemplo: ./ejecutable
+    
+

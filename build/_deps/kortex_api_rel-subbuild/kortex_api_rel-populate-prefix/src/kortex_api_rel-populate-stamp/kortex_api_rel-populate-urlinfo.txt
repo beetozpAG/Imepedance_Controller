@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=/usr/bin/cmake;-P;/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/kortex_api_rel-populate-prefix/src/kortex_api_rel-populate-stamp/download-kortex_api_rel-populate.cmake;COMMAND;/usr/bin/cmake;-P;/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/kortex_api_rel-populate-prefix/src/kortex_api_rel-populate-stamp/verify-kortex_api_rel-populate.cmake;COMMAND;/usr/bin/cmake;-P;/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/kortex_api_rel-populate-prefix/src/kortex_api_rel-populate-stamp/extract-kortex_api_rel-populate.cmake
+source_dir=/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-src
+work_dir=/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps
+url(s)=https://artifactory.kinovaapps.com:443/artifactory/generic-public/kortex/API/2.7.0/linux_x86-64_gcc_5.4.zip
+hash=SHA256=e522fde1424103050c3512f7989c2e7be74353fc754a17d162bb33ad365fb7ae
+no_extract=
+

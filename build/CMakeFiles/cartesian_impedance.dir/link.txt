@@ -1,0 +1,2 @@
+/usr/bin/ar qc libcartesian_impedance.a CMakeFiles/cartesian_impedance.dir/src/cartesian_impedance_controller.cpp.o
+/usr/bin/ranlib libcartesian_impedance.a
