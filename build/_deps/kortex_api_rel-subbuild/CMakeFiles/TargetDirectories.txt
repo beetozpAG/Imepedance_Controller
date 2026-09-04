@@ -1,3 +1,0 @@
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/CMakeFiles/kortex_api_rel-populate.dir
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/CMakeFiles/edit_cache.dir
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/kortex_api_rel-subbuild/CMakeFiles/rebuild_cache.dir

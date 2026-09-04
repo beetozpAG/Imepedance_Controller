@@ -1,2 +1,0 @@
-/usr/bin/ar qc liblow_latency_list.a CMakeFiles/low_latency_list.dir/src/block_list_node.cpp.o
-/usr/bin/ranlib liblow_latency_list.a

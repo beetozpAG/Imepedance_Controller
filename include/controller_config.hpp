@@ -5,6 +5,13 @@
 namespace project_config
 {
 
+enum class CartesianReferenceMode
+{
+    InitialPose,
+    RelativeOffset,
+    AbsolutePose
+};
+
 struct ControllerConfig
 {
     using Controller = impedance::CartesianImpedanceController;
@@ -26,9 +33,10 @@ struct ControllerConfig
 
 
 
-    // CARTESIAN REFERENCE OFFSET
+    // CARTESIAN REFERENCE
     //
-    // Desired Cartesian pose relative to the pose at startup.
+    // InitialPose holds the startup pose, RelativeOffset applies the
+    // offsets below, and AbsolutePose uses a pose in the base frame.
     //
     // Position:
     //   [dx, dy, dz]
@@ -42,7 +50,8 @@ struct ControllerConfig
     //
     // ============================================================
 
-    bool use_cartesian_offset = true;
+    CartesianReferenceMode cartesian_reference_mode =
+        CartesianReferenceMode::RelativeOffset;
 
 
     // Position offset [m]
@@ -60,6 +69,21 @@ struct ControllerConfig
             << 0.0,    // Roll
             0.0,    // Pitch
             0.0)    // Yaw
+        .finished();
+
+
+    // Absolute position in robot base frame [m]
+    Eigen::Vector3d absolute_position =
+        (Eigen::Vector3d()
+            << 0.0, 0.0, 0.0)
+        .finished();
+
+
+    // Absolute orientation in robot base frame [deg].
+    // Convention: Rz(yaw) * Ry(pitch) * Rx(roll).
+    Eigen::Vector3d absolute_orientation_rpy_deg =
+        (Eigen::Vector3d()
+            << 0.0, 0.0, 0.0)
         .finished();
 
 

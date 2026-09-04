@@ -1,3 +1,0 @@
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/boost-subbuild/CMakeFiles/boost-populate.dir
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/boost-subbuild/CMakeFiles/edit_cache.dir
-/home/beetozp/Escritorio/MODULAR/Controlador_Impedancia/build/_deps/boost-subbuild/CMakeFiles/rebuild_cache.dir

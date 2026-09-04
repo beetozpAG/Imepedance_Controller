@@ -1,2 +1,0 @@
-/usr/bin/ar qc libkinova_robot.a CMakeFiles/kinova_robot.dir/kinova_robot.cpp.o
-/usr/bin/ranlib libkinova_robot.a

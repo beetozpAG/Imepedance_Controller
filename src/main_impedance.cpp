@@ -33,6 +33,7 @@ using namespace KinovaGen3;
 
 using kinova_robot::KinovaRobotLowLevel;
 using impedance::CartesianImpedanceController;
+using project_config::CartesianReferenceMode;
 
 using Vec7E = CartesianImpedanceController::Vec7;
 using Vec6E = CartesianImpedanceController::Vec6;
@@ -56,6 +57,22 @@ constexpr float PI = 3.14159265358979323846f;
 
 
 const project_config::ControllerConfig cfg{};
+
+
+const char* cartesianReferenceModeName(CartesianReferenceMode mode)
+{
+    switch (mode)
+    {
+        case CartesianReferenceMode::InitialPose:
+            return "INITIAL POSE";
+        case CartesianReferenceMode::RelativeOffset:
+            return "RELATIVE OFFSET";
+        case CartesianReferenceMode::AbsolutePose:
+            return "ABSOLUTE POSE";
+    }
+
+    return "UNKNOWN";
+}
 
 
 template <typename T, size_t N, size_t M>
@@ -913,15 +930,17 @@ int main()
             initial_orientation;
 
 
-        if (cfg.use_cartesian_offset)
+        constexpr double DEG2RAD =
+            3.14159265358979323846 / 180.0;
+
+
+        if (cfg.cartesian_reference_mode ==
+            CartesianReferenceMode::RelativeOffset)
         {
             // position_offset is expressed in the ROBOT BASE frame.
             desired_position +=
                 cfg.position_offset;
 
-
-            constexpr double DEG2RAD =
-                3.14159265358979323846 / 180.0;
 
 
             const double roll =
@@ -967,6 +986,35 @@ int main()
             desired_orientation.normalize();
         }
 
+        else if (cfg.cartesian_reference_mode ==
+                 CartesianReferenceMode::AbsolutePose)
+        {
+            desired_position = cfg.absolute_position;
+
+            const double roll =
+                cfg.absolute_orientation_rpy_deg(0) * DEG2RAD;
+            const double pitch =
+                cfg.absolute_orientation_rpy_deg(1) * DEG2RAD;
+            const double yaw =
+                cfg.absolute_orientation_rpy_deg(2) * DEG2RAD;
+
+            desired_orientation =
+                Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
+                * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
+                * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+
+            desired_orientation.normalize();
+        }
+
+
+        if (!desired_position.allFinite() ||
+            !desired_orientation.coeffs().allFinite())
+        {
+            throw std::runtime_error(
+                "Desired Cartesian pose contains NaN/Inf"
+            );
+        }
+
 
         // INITIALIZE CONTROLLER WITH DESIRED REFERENCE
         
@@ -999,6 +1047,10 @@ int main()
             << " CONTROLLER CONFIGURATION\n"
             << "============================================================\n"
             << " Cartesian task    : ENABLED\n"
+            << " Reference mode   : "
+            << cartesianReferenceModeName(
+                    cfg.cartesian_reference_mode)
+            << "\n"
             << " Nullspace         : "
             << (cfg.enable_nullspace
                     ? "ENABLED"
@@ -1016,6 +1068,17 @@ int main()
             << "\n"
             << " Gravity -> HW     : YES\n"
             << "============================================================\n";
+
+
+        std::cout
+            << "\nDesired position [m]:\n"
+            << desired_position.transpose()
+            << "\n"
+            << "\nDesired quaternion [w x y z]:\n"
+            << desired_orientation.w() << " "
+            << desired_orientation.x() << " "
+            << desired_orientation.y() << " "
+            << desired_orientation.z() << "\n";
 
 
         std::cout
