@@ -25,6 +25,7 @@ No hacer sin autorización explícita:
 - Aumentar límites de corriente/torque.
 - Eliminar saturaciones.
 - Eliminar checks NaN/Inf.
+- Usar `AbsolutePose` en hardware sin validar previamente posición, orientación, frame y error inicial en shadow mode.
 - Introducir ROS o MoveIt.
 - Reemplazar la API local del controlador por la API de un paper o repositorio externo.
 
@@ -48,8 +49,7 @@ Controlador_Impedancia/
 │   └── controller_config.hpp
 └── tests/
     ├── model_smoke_test.cpp
-    ├── jacobian_validation_test.cpp
-    └── rotational_jacobian_validation_test.cpp
+    └── jacobian_validation_test.cpp
 ```
 
 ## 4. Tipos de datos
@@ -156,6 +156,7 @@ setDampingFactors(...)
 setFiltering(...)
 setMaxTorqueDelta(...)
 setWrench(...)
+setReferencePose(...)
 initialize(...)
 setNullspaceReference(...)
 compute(...)
@@ -185,6 +186,9 @@ porque funciona principalmente como contenedor de datos públicos.
 Ejemplos:
 ```cpp
 cfg.update_hz
+cfg.cartesian_reference_mode
+cfg.absolute_position
+cfg.absolute_orientation_rpy_deg
 cfg.stiffness
 cfg.damping_factors
 cfg.enable_nullspace
@@ -193,38 +197,54 @@ cfg.wrench
 
 ## 8. Referencia cartesiana actual
 
-Por ahora se usa una referencia relativa a la pose inicial.
+La selección usa la API local:
 
-Posición:
-
-\[
-p_d=p_0+\Delta p
-\]
-
-Orientación:
-
-\[
-R_d=R_0R_\Delta
-\]
-
-Ejemplo:
 ```cpp
-bool use_cartesian_offset = true;
-
-Eigen::Vector3d position_offset =
-    (Eigen::Vector3d()
-        << 0.02, 0.00, 0.00)
-    .finished();
-
-Eigen::Vector3d orientation_offset_rpy_deg =
-    (Eigen::Vector3d()
-        << 0.0, 0.0, 0.0)
-    .finished();
+enum class CartesianReferenceMode
+{
+    InitialPose,
+    RelativeOffset,
+    AbsolutePose
+};
 ```
 
-RPY está en grados en config por comodidad, pero se convierte a radianes antes de `Eigen::AngleAxisd`.
+El modo predeterminado conserva el comportamiento anterior:
 
-Más adelante se añadirán referencias absolutas para pick-and-place.
+```cpp
+CartesianReferenceMode cartesian_reference_mode =
+    CartesianReferenceMode::RelativeOffset;
+```
+
+Modos disponibles:
+
+- `InitialPose`: mantiene la pose medida al arrancar.
+- `RelativeOffset`: usa posición en el frame base y orientación relativa a la orientación inicial del efector.
+- `AbsolutePose`: usa posición y orientación absolutas respecto al frame base del robot.
+
+Para la referencia relativa:
+
+\[
+p_d=p_0+\Delta p, \qquad R_d=R_0R_\Delta
+\]
+
+Para la referencia absoluta:
+
+\[
+p_d=p_{abs}, \qquad R_d=R_z(yaw)R_y(pitch)R_x(roll)
+\]
+
+Configuración asociada:
+
+```cpp
+Eigen::Vector3d position_offset;
+Eigen::Vector3d orientation_offset_rpy_deg;
+Eigen::Vector3d absolute_position;
+Eigen::Vector3d absolute_orientation_rpy_deg;
+```
+
+Las posiciones están en metros. Los valores RPY están en grados y se convierten a radianes antes de construir `Eigen::AngleAxisd`. En `AbsolutePose`, no se premultiplica por la orientación inicial.
+
+La referencia deseada se comprueba con `.allFinite()` antes de inicializar el controlador. Los valores absolutos deben configurarse y validarse en shadow mode antes de cualquier prueba física.
 
 ## 9. Inicialización
 
@@ -345,16 +365,16 @@ struct ControllerOutput
 
 Switch crítico:
 ```cpp
-constexpr bool ENABLE_IMPEDANCE_HARDWARE = false;
+constexpr bool ENABLE_IMPEDANCE_HARDWARE = true;
 ```
 
-Mientras sea `false`:
+La rama de hardware está compilada, pero el slider GTK arranca apagado. Mientras el slider esté OFF:
 
 \[
 \tau_{HW}=g(q)
 \]
 
-El controlador se calcula, monitorea y registra, pero no se aplica físicamente.
+Con el slider OFF, el controlador se calcula, monitorea y registra, pero no se aplica físicamente; con ON se aplica mediante el blend gradual.
 
 Virtualmente:
 
@@ -368,7 +388,9 @@ Físicamente:
 \tau_{HW}=g(q)
 \]
 
-No cambiar este switch automáticamente.
+El slider GTK `Control Action` debe arrancar apagado. OFF mantiene compensación de gravedad; ON habilita gradualmente la impedancia mediante el blend. No activar ON durante pruebas físicas sin autorización y validación.
+
+No cambiar IP, límites, saturaciones ni modos de control.
 
 ## 14. Blend de impedancia
 
@@ -549,11 +571,14 @@ Antes de correr:
 - Revisar corrientes.
 - No eliminar saturaciones.
 - Mantener shadow mode durante validación.
+- Antes de usar `AbsolutePose`, confirmar que posición y RPY están expresados respecto al frame base correcto.
+- Revisar el error cartesiano inicial: una referencia absoluta incorrecta puede producir torques virtuales grandes.
 - Compilar correctamente NO implica seguridad física.
 
 ## 24. Roadmap
 
 Actual:
+- validar referencias cartesianas absolutas en shadow mode,
 - entender completamente el código,
 - validar offsets pequeños,
 - validar `pose_error`,
@@ -564,7 +589,6 @@ Actual:
 - validar wrench.
 
 Después:
-- referencias cartesianas absolutas,
 - referencia suave `p_d(t)`,
 - máquina de estados,
 - pick-and-place,
@@ -629,4 +653,28 @@ Antes de tocar código:
 
 ## 27. Resumen corto del proyecto
 
-> El programa lee el estado articular del Kinova, usa un modelo analítico para obtener pose, Jacobiano y gravedad, calcula el error cartesiano respecto a una referencia y aplica una ley de impedancia tipo resorte-amortiguador. El wrench cartesiano se transforma a torques articulares mediante la transpuesta del Jacobiano. Además puede añadir nullspace y wrench deseado. Actualmente el controlador se valida en shadow mode: se calcula y registra todo el torque de impedancia, pero el hardware recibe únicamente compensación de gravedad.
+> El programa lee el estado articular del Kinova, usa un modelo analítico para obtener pose, Jacobiano y gravedad, calcula el error cartesiano respecto a una referencia y aplica una ley de impedancia tipo resorte-amortiguador. El wrench cartesiano se transforma a torques articulares mediante la transpuesta del Jacobiano. Además puede añadir nullspace y wrench deseado. Actualmente el controlador arranca con el slider GTK apagado: se calcula y registra la impedancia, mientras el hardware recibe únicamente compensación de gravedad. El slider puede habilitar gradualmente el blend de impedancia en hardware.
+
+
+## 28. Resumen de sesión — 2026-09-03
+
+- Se revisó la estructura real del proyecto y la API local compilable.
+- Se añadió selección explícita de referencia mediante `CartesianReferenceMode`: `InitialPose`, `RelativeOffset` y `AbsolutePose`.
+- Se añadieron `absolute_position` y `absolute_orientation_rpy_deg`; la orientación absoluta usa la convención `Rz(yaw) * Ry(pitch) * Rx(roll)` respecto al frame base.
+- `RelativeOffset` permanece como modo predeterminado, preservando el comportamiento anterior.
+- Se añadió un check NaN/Inf para la pose deseada y se muestra en consola el modo y la referencia seleccionados.
+- Compilaron correctamente `cartesian_impedance`, `impedance_gen3`, `model_smoke_test` y `jacobian_validation_test`; no se ejecutó el robot.
+- `ENABLE_IMPEDANCE_HARDWARE` está en `true` para permitir el gating runtime del slider; el slider arranca en `false`. No se modificaron IP, modos de control, gravedad, límites, saturaciones ni `sendCur()`.
+
+
+## 29. Resumen de sesión — 2026-09-07
+
+- Se integró una ventana GTK en `main_impedance.cpp`, inspirada en el ejemplo `Experiment_Examples_KinovaGen3/main.cpp`.
+- El control de robot se ejecuta en un hilo separado del loop GTK.
+- El slider `Control Action` arranca apagado y usa una bandera atómica.
+- Slider OFF: se mantiene la compensación de gravedad y el blend de impedancia es cero.
+- Slider ON: se habilita gradualmente `tau_hw = gravity + alpha * tau_imp` usando `cfg.impedance_blend_time_s`.
+- El botón `Quit` solicita parada y permite la transición de apagado gravitacional existente.
+- `ENABLE_IMPEDANCE_HARDWARE` se dejó en `true` para que el gating runtime tenga efecto; esto requiere validación física explícita antes de poner el slider ON.
+- Se mantuvieron los límites de torque/corriente, saturaciones, checks NaN/Inf, IP, modos de control y `sendCur()`.
+- `impedance_gen3` compiló correctamente; el robot no fue ejecutado ni conectado durante la validación.

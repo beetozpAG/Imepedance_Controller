@@ -19,17 +19,13 @@ struct ControllerConfig
     using Vec6 = Controller::Vec6;
     using Vec7 = Controller::Vec7;
 
-    // ============================================================
-    // CONTROL LOOP
-    // ============================================================
 
     double update_hz = 1000.0;
 
     // Terminal dashboard refresh period.
     double dashboard_period_s = 0.20;
 
-    // <= 0.0 => run until Ctrl+C.
-    double experiment_duration_s = 30.0;
+    double experiment_duration_s = 120.0;
 
 
 
@@ -48,7 +44,6 @@ struct ControllerConfig
     //   relative to the INITIAL end-effector orientation.
     //   Units: degrees.
     //
-    // ============================================================
 
     CartesianReferenceMode cartesian_reference_mode =
         CartesianReferenceMode::RelativeOffset;
@@ -87,16 +82,7 @@ struct ControllerConfig
         .finished();
 
 
-    // ============================================================
     // CARTESIAN STIFFNESS
-    // ============================================================
-    //
-    // [Kx, Ky, Kz, Krx, Kry, Krz]
-    //
-    // Translation: N/m
-    // Rotation:    Nm/rad
-    //
-    // ============================================================
 
     Vec6 stiffness =
         (Vec6()
@@ -105,38 +91,16 @@ struct ControllerConfig
         .finished();
 
 
-    // ============================================================
     // CARTESIAN DAMPING FACTORS
-    // ============================================================
+    
     //
-    // Controller rule:
-    //
-    //     D_i = damping_factor_i * 2*sqrt(K_i)
-    //
-    // ============================================================
 
     Vec6 damping_factors =
         Vec6::Ones();
 
 
-    // ============================================================
     // NULLSPACE
-    // ============================================================
     //
-    // Completely safe to enable in SHADOW mode because
-    // ENABLE_IMPEDANCE_HARDWARE remains false in main.
-    //
-    // q_null_des = q_initial + nullspace_offset
-    //
-    // Offset units: rad.
-    //
-    // Example 5 deg on joint 3:
-    //
-    // nullspace_offset =
-    //     (Vec7() << 0, 0, 0.0872665, 0, 0, 0, 0).finished();
-    //
-    // ============================================================
-
     bool enable_nullspace = false;
 
     double nullspace_stiffness = 5.0;
@@ -146,9 +110,7 @@ struct ControllerConfig
         Vec7::Zero();
 
 
-    // ============================================================
     // DESIRED CARTESIAN WRENCH
-    // ============================================================
     //
     // [Fx, Fy, Fz, Mx, My, Mz]
     //
@@ -170,24 +132,8 @@ struct ControllerConfig
 
 
 
-    // ============================================================
     // FILTERS
-    // ============================================================
-    //
-    // IMPORTANT:
-    // This matches YOUR custom controller API:
-    //
-    // setFiltering(
-    //     update_hz,
-    //     pose_filter,
-    //     stiffness_filter,
-    //     wrench_filter,
-    //     nullspace_filter
-    // );
-    //
-    // Each filter must be in (0,1].
-    //
-    // ============================================================
+    
 
     double pose_filter = 0.10;
     double stiffness_filter = 0.10;
@@ -195,44 +141,24 @@ struct ControllerConfig
     double nullspace_filter = 0.10;
 
 
-    // ============================================================
     // IMPEDANCE TORQUE SLEW-RATE LIMIT
-    // ============================================================
 
     double delta_tau_max = 1.0;
 
 
-    // ============================================================
     // GRAVITY TRANSITIONS
-    // ============================================================
 
     int gravity_warmup_cycles = 200;
     int gravity_shutdown_cycles = 200;
 
 
-    // ============================================================
-    // FUTURE HARDWARE BLEND
-    // ============================================================
     //
-    // Used ONLY when compile-time hardware impedance is enabled.
-    //
-    // tau_hw = g(q) + alpha*tau_imp
-    //
-    // alpha grows 0 -> 1 in this time.
-    //
-    // ============================================================
 
-    double impedance_blend_time_s = 2.0;
+    double impedance_blend_time_s = 1.0;
 
 
-    // ============================================================
     // SHADOW DIAGNOSTIC THRESHOLDS
-    // ============================================================
-    //
-    // These produce WARNINGS only.
-    // NaN/Inf and REAL hardware current violations produce a stop.
-    //
-    // ============================================================
+    
 
     double max_shadow_position_error_m = 0.25;
     double max_shadow_rotation_error_rad = 1.0;

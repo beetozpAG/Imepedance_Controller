@@ -11,6 +11,10 @@
 #include <string>
 
 #include <Eigen/Dense>
+#include <gtk/gtk.h>
+#include <atomic>
+#include <thread>
+#include <mutex>
 #include <boost/asio/io_context.hpp>
 
 #include <data_logger.h>
@@ -46,7 +50,7 @@ using named_tuple::operator""_nm;
 
 
 
-constexpr bool ENABLE_IMPEDANCE_HARDWARE = false;
+constexpr bool ENABLE_IMPEDANCE_HARDWARE = true;
 
 constexpr const char* ROBOT_IP = "192.168.1.10";
 constexpr const char* USERNAME = "admin";
@@ -123,6 +127,9 @@ ExperimentLogger logger;
 
 
 volatile std::sig_atomic_t stop_requested = 0;
+std::atomic_bool impedance_enabled{false};
+std::mutex gui_dashboard_mutex;
+std::string gui_dashboard_text = "Control OFF - gravity compensation active";
 
 void signalHandler(int)
 {
@@ -773,9 +780,110 @@ void printDashboard(
 }
 
 
+
+static gboolean control_set_state(GtkSwitch*, gboolean state, gpointer)
+{
+    impedance_enabled.store(state, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(gui_dashboard_mutex);
+        gui_dashboard_text = state
+            ? "Control ON - gravity + Cartesian impedance"
+            : "Control OFF - gravity compensation active";
+    }
+    std::cout << (state ? "\nGUI: impedance control ENABLED\n" : "\nGUI: impedance control DISABLED; gravity only\n");
+    return FALSE;
+}
+
+
+static gboolean update_label(GtkWidget* info_label)
+{
+    if (info_label)
+    {
+        std::string text;
+        {
+            std::lock_guard<std::mutex> lock(gui_dashboard_mutex);
+            text = gui_dashboard_text;
+        }
+        gtk_label_set_text(GTK_LABEL(info_label), text.c_str());
+    }
+    return TRUE;
+}
+
+
+static void quit_application(GtkWidget*, gpointer user_data)
+{
+    stop_requested = 1;
+    if (user_data)
+        g_application_quit(G_APPLICATION(user_data));
+}
+
+
+static void activate(GtkApplication *app, gpointer /*user_data*/)
+{
+  GtkWidget *window;
+  GtkWidget *grid;
+  GtkWidget *controls_grid;
+  GtkWidget *button;
+  GtkWidget *control_switch;
+  GtkWidget *label;
+  GtkWidget *label_slider;
+
+  /* create a new window, and set its title */
+  window = gtk_application_window_new(app);
+  gtk_window_set_title(GTK_WINDOW(window), "Kinova Gen3 Cartesian Impedance");
+  gtk_container_set_border_width(GTK_CONTAINER(window), 10);
+
+  /* Here we construct the container that is going pack our buttons */
+  grid = gtk_grid_new();
+  gtk_grid_set_column_spacing(GTK_GRID(grid), 20);
+  controls_grid = gtk_grid_new();
+  gtk_grid_set_column_spacing(GTK_GRID(controls_grid), 20);
+
+  /* Pack the container in the window */
+  gtk_container_add(GTK_CONTAINER(window), grid);
+
+  control_switch = gtk_switch_new();
+  gtk_widget_set_halign(control_switch, GTK_ALIGN_START);
+  gtk_widget_set_valign(control_switch, GTK_ALIGN_START);
+  gtk_widget_set_hexpand(control_switch, false);
+  gtk_widget_set_vexpand(control_switch, false);
+  g_signal_connect(control_switch, "state-set", G_CALLBACK(control_set_state),
+                   NULL);
+
+  label_slider = gtk_label_new(" Control Action ");
+  gtk_grid_attach(GTK_GRID(controls_grid), label_slider, 1, 0, 2, 1);
+  gtk_grid_attach(GTK_GRID(controls_grid), control_switch, 3, 0, 1, 1);
+
+  label = gtk_label_new("info");
+  gtk_grid_attach(GTK_GRID(grid), label, 0, 1, 3, 1);
+  g_timeout_add(16, G_SOURCE_FUNC(update_label), label);
+
+  button = gtk_button_new_with_label("Quit");
+  gtk_widget_set_halign(button, GTK_ALIGN_START);
+  gtk_widget_set_valign(button, GTK_ALIGN_START);
+  gtk_widget_set_hexpand(button, false);
+  gtk_widget_set_vexpand(button, false);
+  g_signal_connect(button, "clicked", G_CALLBACK(quit_application), app);
+  gtk_grid_attach(GTK_GRID(controls_grid), button, 4, 0, 1, 1);
+  gtk_grid_attach(GTK_GRID(grid), controls_grid, 0, 2, 4, 1);
+
+  /* Now that we are done packing our widgets, we show them all
+   * in one go, by calling gtk_widget_show_all() on the window.
+   * This call recursively calls gtk_widget_show() on all widgets
+   * that are contained in the window, directly or indirectly.
+   */
+  gtk_widget_show_all(window);
+}
+
+
+
+
+
+
+
 //main
 
-int main()
+int controlThreadMain()
 {
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
@@ -1490,29 +1598,22 @@ int main()
                 ENABLE_IMPEDANCE_HARDWARE)
             {
 
-                if (
-                    cfg.impedance_blend_time_s
-                    >
-                    0.0
-                )
+                if (!impedance_enabled.load(std::memory_order_relaxed))
+                {
+                    impedance_blend = 0.0;
+                }
+                else if (cfg.impedance_blend_time_s > 0.0)
                 {
                     impedance_blend +=
-                        dt /
-                        cfg.impedance_blend_time_s;
+                        dt / cfg.impedance_blend_time_s;
                 }
                 else
                 {
-                    impedance_blend =
-                        1.0;
+                    impedance_blend = 1.0;
                 }
 
-
                 impedance_blend =
-                    std::clamp(
-                        impedance_blend,
-                        0.0,
-                        1.0
-                    );
+                    std::clamp(impedance_blend, 0.0, 1.0);
 
 
                 tau_hw =
@@ -1846,4 +1947,20 @@ int main()
 
         return 1;
     }
+}
+
+
+int main(int argc, char** argv)
+{
+    GtkApplication* app = gtk_application_new(
+        "org.kinova.impedance", G_APPLICATION_DEFAULT_FLAGS);
+    g_signal_connect(app, "activate", G_CALLBACK(activate), nullptr);
+
+    std::thread control_thread(controlThreadMain);
+    const int status = g_application_run(G_APPLICATION(app), argc, argv);
+
+    stop_requested = 1;
+    control_thread.join();
+    g_object_unref(app);
+    return status;
 }
